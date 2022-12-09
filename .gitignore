@@ -2,4 +2,4 @@
 *.o
 star1
 star2
-input.txt
+*.txt
