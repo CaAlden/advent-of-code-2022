@@ -10,6 +10,7 @@ module Grid (
 ) where
 
 import Data.List (replicate, intercalate)
+import Data.Maybe
 import Control.Monad (join)
 
 data Grid a = Grid {
@@ -72,5 +73,10 @@ replace (r, c) val grid@Grid { items = i } = grid {
 }
   where updatedRow = setListValue val c (i!!r)
 
+valueAtSafe :: (Int, Int) -> Grid a -> Maybe a
+valueAtSafe (row, col) Grid { rowCount = r, columnCount = c } | row < 0 || row >= r || col < 0 || col >= c = Nothing
+valueAtSafe (row, col) Grid { items = i } = Just ((i!!row)!!col)
+
 valueAt :: (Int, Int) -> Grid a -> a
-valueAt (row, col) Grid { items = i} = (i!!row)!!col
+valueAt p g = fromJust $ valueAtSafe p g
+
