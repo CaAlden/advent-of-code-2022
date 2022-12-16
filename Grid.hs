@@ -5,7 +5,8 @@ module Grid (
   fromListWithDims,
   fromLists,
   generateGrid,
-  replace
+  replace,
+  valueAt
 ) where
 
 import Data.List (replicate, intercalate)
@@ -29,6 +30,12 @@ instance (Show a) => Show (Grid a) where
           longest = maximum $ map length $ join stringified
           padded = map (map (pad longest)) stringified
           contents = intercalate "\n" $ (map (intercalate " ") padded)
+
+instance Functor Grid where
+  fmap f g@Grid { items = i } = g { items = fmap (fmap f) i }
+
+instance Foldable Grid where
+  foldMap f g@Grid { items = i } = foldMap (foldMap f) i
 
 fromListWithDims :: (Int, Int) -> [a] -> Grid a
 fromListWithDims (r, c) list = Grid {
@@ -64,3 +71,6 @@ replace (r, c) val grid@Grid { items = i } = grid {
   items = setListValue updatedRow r i
 }
   where updatedRow = setListValue val c (i!!r)
+
+valueAt :: (Int, Int) -> Grid a -> a
+valueAt (row, col) Grid { items = i} = (i!!row)!!col
