@@ -6,7 +6,13 @@ module Grid (
   fromLists,
   generateGrid,
   replace,
-  valueAt
+  valueAt,
+  valueAtSafe,
+  coords,
+  findInGrid,
+  findIndexInGrid,
+  findLastIndexWhere,
+  growGridRows
 ) where
 
 import Data.List (replicate, intercalate)
@@ -64,7 +70,7 @@ generateGrid (rs, cs) i = Grid {
 setListValue :: a -> Int -> [a] -> [a]
 setListValue v 0 (x:xs) = v : xs
 setListValue v n _ | n < 0 = error "index was negative"
-setListValue v n [] | n > 0 = error "index was out of bounds"
+setListValue v n [] | n >= 0 = error "index was out of bounds"
 setListValue v n (x:xs) = x : (setListValue v (n - 1) xs)
 
 replace :: (Int, Int) -> a -> Grid a -> Grid a
@@ -78,5 +84,33 @@ valueAtSafe (row, col) Grid { rowCount = r, columnCount = c } | row < 0 || row >
 valueAtSafe (row, col) Grid { items = i } = Just ((i!!row)!!col)
 
 valueAt :: (Int, Int) -> Grid a -> a
-valueAt p g = fromJust $ valueAtSafe p g
+valueAt p g = unwrap $ valueAtSafe p g
+  where unwrap (Just v) = v
+        unwrap Nothing = error ("no value at " ++ (show p))
+
+coords :: Grid a -> [(Int, Int)]
+coords g = [(r, c) | r <- [0..(rowCount g) - 1], c <- [0..(columnCount g) - 1] ]
+
+findInGrid :: (a -> Bool) -> Grid a -> Maybe a
+findInGrid f g = foldr match Nothing g
+  where match _ (Just x) = Just x
+        match val Nothing | f val = Just val
+        match _ _ = Nothing
+
+findIndexInGrid :: (a -> Bool) -> Grid a -> Maybe (Int, Int)
+findIndexInGrid pred g = foldr match Nothing (coords g)
+  where match _ (Just coord) = Just coord
+        match p Nothing | pred (valueAt p g) = Just p
+        match _ _ = Nothing
+
+findLastIndexWhere :: (a -> Bool) -> Grid a -> Maybe (Int, Int)
+findLastIndexWhere pred grid = foldl match Nothing (coords grid)
+  where match acc p = if pred (valueAt p grid) then Just p else acc
+
+growGridRows :: Int -> a -> Grid a -> Grid a
+growGridRows n a Grid { rowCount = r, columnCount = c, items = i} = Grid {
+  rowCount = r + n,
+  columnCount = c,
+  items = i ++ (items $ generateGrid (n, c) a)
+}
 
