@@ -3,12 +3,22 @@ import Control.Monad (join)
 import Data.Maybe
 import Grid
 {-
-   The only difference between this and star 1 is that the number of rocks
-   is rediculous. But you don't actually need to track that much memory,
-   just the lowest level where no other rocks can possibly get through
+  This puzzle is very similar to tetris. It's even possible that the second star will involve removing fully filled lines
+  in regular tetris fashion.
 
-   Even then I don't think you have to be that careful, just store the last 100
-   lines or so and keep track of how many lines have been removed
+  The solution will thus involve:
+  - Shapes in a cyclical list to support simply grabbing the next shape
+  - The Board state which is a List of 7 element lists representing lines in the Board
+
+  A round looks like
+   - The shape is pushed (if possible) in the direction at the top of the directions list
+   - The shape falls if it can or else is affixed in place
+   - A new shape is addded if the old shape was affixed at a  point
+   - The list of jets also cycles
+
+  Each rock appears so that its left edge is two units away from the left wall and its bottom
+  edge is three units above the highest rock in the room (or the floor, if there isn't one).
+
 -}
 
 data ShapeType = HBar | Cross | L | VBar | Square deriving (Eq, Show)
@@ -76,59 +86,44 @@ newShape Square (r, c) = Shape { shape = HBar, points = [bl, br, tl, tr]}
 
 -- A tuple containing the current shape that's moving,
 -- the current board state,
--- The amount the board has been offset by
 -- a list of shapes to draw new shapes from,
 -- and a list of moves to make
-type State = (Shape, Grid Elements, Int, [ShapeType], [Move])
+type State = (Shape, Grid Elements, [ShapeType], [Move])
 
 maybeExtend :: Point -> Grid Elements -> Grid Elements
 maybeExtend (r, c) g = if (rowCount g) - r < 10
                           then growGridRows 10 Air g
                           else g
 
-maybeTrim :: Grid Elements -> (Int, Grid Elements)
-maybeTrim g = if (rowCount g) > 100
-                 then (50, dropGridRows 50 g)
-                 else (0, g)
-
 fall :: State -> State
-fall (s, g, offset, (next:shapes), (move:moves)) =
+fall (s, g, (next:shapes), (move:moves)) =
   if isNothing dropped || (fromJust dropped) `intersects` g
     then affixed
-    else fall (fromJust dropped, g, offset, (next:shapes), moves)
+    else fall (fromJust dropped, g, (next:shapes), moves)
   where shifted = shiftMove s g move
         dropped = shiftDown shifted
         nextGrid = makeRocks shifted g
         topRock = getTopRock nextGrid
-        (newOffset, finalizedAffixedGrid) = maybeTrim $ maybeExtend topRock nextGrid
-        nextShape = newShape next topRock
-        correctedNextShape = nextShape { points = map (\(r, c) -> (r - newOffset, c)) (points nextShape) }
-        affixed = (correctedNextShape, finalizedAffixedGrid, offset + newOffset, shapes, moves)
+        nextShape = newShape next (getTopRock nextGrid)
+        affixed = (nextShape, maybeExtend topRock nextGrid, shapes, moves)
 
 run :: Int -> (a -> a) -> a -> a
 run 0 f base = base
 run n f base = run (n - 1) f (f base)
 
 getGrid :: State -> Grid Elements
-getGrid (_, g, _, _, _) = g
-
-getOffset :: State -> Int
-getOffset (_, _, offset, _, _) = offset
+getGrid (_, g, _, _) = g
 
 drawGrid :: State -> Grid Elements
-drawGrid (s, grid, _, _, _) = foldr (\p g -> replace p FallingRock g) grid (points s)
+drawGrid (s, grid, _, _) = foldr (\p g -> replace p FallingRock g) grid (points s)
 
 solution :: String -> String
-solution input = show $ fmap ((+ (finalOffset + 1)) . fst) $ findLastIndexWhere (== Rock) finalGrid
+solution input = show . (findLastIndexWhere (== Rock)) . drawGrid $ (run count fall initial_state)
   where moves = cycle (map parse_move (join $ lines input))
         (s:shapes) = cycle [HBar, Cross, L, VBar, Square]
-        -- count = 1000000000000
-        count = 1000000
+        count = 2022
         initial_grid = generateGrid (10, 7) Air
-        initial_state = (newShape s (-1,0), initial_grid, 0, shapes, moves)
-        finalState = (run count fall initial_state)
-        finalOffset = getOffset finalState
-        finalGrid = getGrid finalState
+        initial_state = (newShape s (-1,0), initial_grid, shapes, moves)
 
 main :: IO ()
 main = interact solution
